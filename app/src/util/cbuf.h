@@ -1,11 +1,11 @@
 // generic circular buffer (bounded queue) implementation
-#ifndef CBUF_H
-#define CBUF_H
+#ifndef SC_CBUF_H
+#define SC_CBUF_H
+
+#include "common.h"
 
 #include <stdbool.h>
 #include <unistd.h>
-
-#include "config.h"
 
 // To define a circular buffer type of 20 ints:
 //     struct cbuf_int CBUF(int, 20);
