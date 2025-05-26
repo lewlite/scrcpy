@@ -1,19 +1,17 @@
-#ifndef SERVER_H
-#define SERVER_H
+#ifndef SC_SERVER_H
+#define SC_SERVER_H
 
 #include "common.h"
 
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 #include "adb/adb_tunnel.h"
-#include "coords.h"
 #include "options.h"
 #include "util/intr.h"
-#include "util/log.h"
 #include "util/net.h"
 #include "util/thread.h"
+#include "util/tick.h"
 
 #define SC_DEVICE_NAME_FIELD_LENGTH 64
 struct sc_server_info {
@@ -26,24 +24,36 @@ struct sc_server_params {
     enum sc_log_level log_level;
     enum sc_codec video_codec;
     enum sc_codec audio_codec;
+    enum sc_video_source video_source;
     enum sc_audio_source audio_source;
+    enum sc_camera_facing camera_facing;
     const char *crop;
     const char *video_codec_options;
     const char *audio_codec_options;
     const char *video_encoder;
     const char *audio_encoder;
+    const char *camera_id;
+    const char *camera_size;
+    const char *camera_ar;
+    uint16_t camera_fps;
     struct sc_port_range port_range;
     uint32_t tunnel_host;
     uint16_t tunnel_port;
     uint16_t max_size;
     uint32_t video_bit_rate;
     uint32_t audio_bit_rate;
-    uint16_t max_fps;
-    int8_t lock_video_orientation;
+    const char *max_fps; // float to be parsed by the server
+    const char *angle; // float to be parsed by the server
+    sc_tick screen_off_timeout;
+    enum sc_orientation capture_orientation;
+    enum sc_orientation_lock capture_orientation_lock;
     bool control;
     uint32_t display_id;
+    const char *new_display;
+    enum sc_display_ime_policy display_ime_policy;
     bool video;
     bool audio;
+    bool audio_dup;
     bool show_touches;
     bool stay_awake;
     bool force_adb_forward;
@@ -56,9 +66,11 @@ struct sc_server_params {
     bool select_tcpip;
     bool cleanup;
     bool power_on;
-    bool list_encoders;
-    bool list_displays;
     bool kill_adb_on_close;
+    bool camera_high_speed;
+    bool vd_destroy_content;
+    bool vd_system_decorations;
+    uint8_t list;
 };
 
 struct sc_server {

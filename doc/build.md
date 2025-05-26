@@ -58,7 +58,7 @@ sudo apt install gcc git pkg-config meson ninja-build libsdl2-dev \
                  libswresample-dev libusb-1.0-0-dev
 
 # server build dependencies
-sudo apt install openjdk-11-jdk
+sudo apt install openjdk-17-jdk
 ```
 
 On old versions (like Ubuntu 16.04), `meson` is too old. In that case, install
@@ -77,7 +77,7 @@ pip3 install meson
 sudo dnf install https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
 
 # client build dependencies
-sudo dnf install SDL2-devel ffms2-devel libusb1-devel meson gcc make
+sudo dnf install SDL2-devel ffms2-devel libusb1-devel libavdevice-free-devel meson gcc make
 
 # server build dependencies
 sudo dnf install java-devel
@@ -94,13 +94,13 @@ This is the preferred method (and the way the release is built).
 From _Debian_, install _mingw_:
 
 ```bash
-sudo apt install mingw-w64 mingw-w64-tools
+sudo apt install mingw-w64 mingw-w64-tools libz-mingw-w64-dev
 ```
 
 You also need the JDK to build the server:
 
 ```bash
-sudo apt install openjdk-11-jdk
+sudo apt install openjdk-17-jdk
 ```
 
 Then generate the releases:
@@ -168,13 +168,13 @@ brew install sdl2 ffmpeg libusb
 brew install pkg-config meson
 ```
 
-Additionally, if you want to build the server, install Java 8 from Caskroom, and
+Additionally, if you want to build the server, install Java 17 from Caskroom, and
 make it available from the `PATH`:
 
 ```bash
 brew tap homebrew/cask-versions
-brew install adoptopenjdk/openjdk/adoptopenjdk11
-export JAVA_HOME="$(/usr/libexec/java_home --version 1.11)"
+brew install adoptopenjdk/openjdk/adoptopenjdk17
+export JAVA_HOME="$(/usr/libexec/java_home --version 1.17)"
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
@@ -233,10 +233,10 @@ install` must be run as root)._
 
 #### Option 2: Use prebuilt server
 
- - [`scrcpy-server-v2.1.1`][direct-scrcpy-server]  
-   <sub>SHA-256: `9558db6c56743a1dc03b38f59801fb40e91cc891f8fc0c89e5b0b067761f148e`</sub>
+ - [`scrcpy-server-v3.2`][direct-scrcpy-server]  
+   <sub>SHA-256: `b920e0ea01936bf2482f4ba2fa985c22c13c621999e3d33b45baa5acfc1ea3d0`</sub>
 
-[direct-scrcpy-server]: https://github.com/Genymobile/scrcpy/releases/download/v2.1.1/scrcpy-server-v2.1.1
+[direct-scrcpy-server]: https://github.com/Genymobile/scrcpy/releases/download/v3.2/scrcpy-server-v3.2
 
 Download the prebuilt server somewhere, and specify its path during the Meson
 configuration:

@@ -3,11 +3,12 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "util/log.h"
 #include "util/str.h"
 
-bool
+static bool
 sc_adb_parse_device(char *line, struct sc_adb_device *device) {
     // One device line looks like:
     // "0123456789abcdef	device usb:2-1 product:MyProduct model:MyModel "

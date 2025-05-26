@@ -4,7 +4,10 @@
 # include <windows.h>
 #endif
 #include <assert.h>
-#include <libavformat/avformat.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <libavutil/log.h>
 
 static SDL_LogPriority
 log_level_sc_to_sdl(enum sc_log_level level) {
@@ -147,7 +150,7 @@ sc_sdl_log_print(void *userdata, int category, SDL_LogPriority priority,
 }
 
 void
-sc_log_configure() {
+sc_log_configure(void) {
     SDL_LogSetOutputFunction(sc_sdl_log_print, NULL);
     // Redirect FFmpeg logs to SDL logs
     av_log_set_callback(sc_av_log_callback);

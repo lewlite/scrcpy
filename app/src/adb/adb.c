@@ -4,9 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
-#include "adb_device.h"
-#include "adb_parser.h"
+#include "adb/adb_device.h"
+#include "adb/adb_parser.h"
+#include "util/env.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/process_intr.h"
@@ -24,15 +26,45 @@
  */
 #define SC_ADB_COMMAND(...) { sc_adb_get_executable(), __VA_ARGS__, NULL }
 
-static const char *adb_executable;
+static char *adb_executable;
+
+bool
+sc_adb_init(void) {
+    adb_executable = sc_get_env("ADB");
+    if (adb_executable) {
+        LOGD("Using adb: %s", adb_executable);
+        return true;
+    }
+
+#if !defined(PORTABLE) || defined(_WIN32)
+    adb_executable = strdup("adb");
+    if (!adb_executable) {
+        LOG_OOM();
+        return false;
+    }
+#else
+    // For portable builds, use the absolute path to the adb executable
+    // in the same directory as scrcpy (except on Windows, where "adb"
+    // is sufficient)
+    adb_executable = sc_file_get_local_path("adb");
+    if (!adb_executable) {
+        // Error already logged
+        return false;
+    }
+
+    LOGD("Using adb (portable): %s", adb_executable);
+#endif
+
+    return true;
+}
+
+void
+sc_adb_destroy(void) {
+    free(adb_executable);
+}
 
 const char *
 sc_adb_get_executable(void) {
-    if (!adb_executable) {
-        adb_executable = getenv("ADB");
-        if (!adb_executable)
-            adb_executable = "adb";
-    }
     return adb_executable;
 }
 
@@ -70,7 +102,7 @@ argv_to_string(const char *const *argv, char *buf, size_t bufsize) {
 }
 
 static void
-show_adb_installation_msg() {
+show_adb_installation_msg(void) {
 #ifndef __WINDOWS__
     static const struct {
         const char *binary;
@@ -218,8 +250,16 @@ sc_adb_forward(struct sc_intr *intr, const char *serial, uint16_t local_port,
                const char *device_socket_name, unsigned flags) {
     char local[4 + 5 + 1]; // tcp:PORT
     char remote[108 + 14 + 1]; // localabstract:NAME
-    sprintf(local, "tcp:%" PRIu16, local_port);
-    snprintf(remote, sizeof(remote), "localabstract:%s", device_socket_name);
+
+    int r = snprintf(local, sizeof(local), "tcp:%" PRIu16, local_port);
+    assert(r >= 0 && (size_t) r < sizeof(local));
+
+    r = snprintf(remote, sizeof(remote), "localabstract:%s",
+                 device_socket_name);
+    if (r < 0 || (size_t) r >= sizeof(remote)) {
+        LOGE("Could not write socket name");
+        return false;
+    }
 
     assert(serial);
     const char *const argv[] =
@@ -233,7 +273,9 @@ bool
 sc_adb_forward_remove(struct sc_intr *intr, const char *serial,
                       uint16_t local_port, unsigned flags) {
     char local[4 + 5 + 1]; // tcp:PORT
-    sprintf(local, "tcp:%" PRIu16, local_port);
+    int r = snprintf(local, sizeof(local), "tcp:%" PRIu16, local_port);
+    assert(r >= 0 && (size_t) r < sizeof(local));
+    (void) r;
 
     assert(serial);
     const char *const argv[] =
@@ -249,8 +291,16 @@ sc_adb_reverse(struct sc_intr *intr, const char *serial,
                unsigned flags) {
     char local[4 + 5 + 1]; // tcp:PORT
     char remote[108 + 14 + 1]; // localabstract:NAME
-    sprintf(local, "tcp:%" PRIu16, local_port);
-    snprintf(remote, sizeof(remote), "localabstract:%s", device_socket_name);
+    int r = snprintf(local, sizeof(local), "tcp:%" PRIu16, local_port);
+    assert(r >= 0 && (size_t) r < sizeof(local));
+
+    r = snprintf(remote, sizeof(remote), "localabstract:%s",
+                 device_socket_name);
+    if (r < 0 || (size_t) r >= sizeof(remote)) {
+        LOGE("Could not write socket name");
+        return false;
+    }
+
     assert(serial);
     const char *const argv[] =
         SC_ADB_COMMAND("-s", serial, "reverse", remote, local);
@@ -263,7 +313,12 @@ bool
 sc_adb_reverse_remove(struct sc_intr *intr, const char *serial,
                       const char *device_socket_name, unsigned flags) {
     char remote[108 + 14 + 1]; // localabstract:NAME
-    snprintf(remote, sizeof(remote), "localabstract:%s", device_socket_name);
+    int r = snprintf(remote, sizeof(remote), "localabstract:%s",
+                     device_socket_name);
+    if (r < 0 || (size_t) r >= sizeof(remote)) {
+        LOGE("Device socket name too long");
+        return false;
+    }
 
     assert(serial);
     const char *const argv[] =
@@ -333,7 +388,9 @@ bool
 sc_adb_tcpip(struct sc_intr *intr, const char *serial, uint16_t port,
              unsigned flags) {
     char port_string[5 + 1];
-    sprintf(port_string, "%" PRIu16, port);
+    int r = snprintf(port_string, sizeof(port_string), "%" PRIu16, port);
+    assert(r >= 0 && (size_t) r < sizeof(port_string));
+    (void) r;
 
     assert(serial);
     const char *const argv[] =
@@ -356,7 +413,7 @@ sc_adb_connect(struct sc_intr *intr, const char *ip_port, unsigned flags) {
 
     // "adb connect" always returns successfully (with exit code 0), even in
     // case of failure. As a workaround, check if its output starts with
-    // "connected".
+    // "connected" or "already connected".
     char buf[128];
     ssize_t r = sc_pipe_read_all_intr(intr, pid, pout, buf, sizeof(buf) - 1);
     sc_pipe_close(pout);
@@ -373,7 +430,8 @@ sc_adb_connect(struct sc_intr *intr, const char *ip_port, unsigned flags) {
     assert((size_t) r < sizeof(buf));
     buf[r] = '\0';
 
-    ok = !strncmp("connected", buf, sizeof("connected") - 1);
+    ok = !strncmp("connected", buf, sizeof("connected") - 1)
+        || !strncmp("already connected", buf, sizeof("already connected") - 1);
     if (!ok && !(flags & SC_ADB_NO_STDERR)) {
         // "adb connect" also prints errors to stdout. Since we capture it,
         // re-print the error to stderr.
@@ -433,6 +491,7 @@ sc_adb_list_devices(struct sc_intr *intr, unsigned flags,
         // in the buffer in a single pass
         LOGW("Result of \"adb devices -l\" does not fit in 64Kb. "
              "Please report an issue.");
+        free(buf);
         return false;
     }
 
@@ -712,4 +771,22 @@ sc_adb_get_device_ip(struct sc_intr *intr, const char *serial, unsigned flags) {
     buf[r] = '\0';
 
     return sc_adb_parse_device_ip(buf);
+}
+
+uint16_t
+sc_adb_get_device_sdk_version(struct sc_intr *intr, const char *serial) {
+    char *sdk_version =
+        sc_adb_getprop(intr, serial, "ro.build.version.sdk", SC_ADB_SILENT);
+    if (!sdk_version) {
+        return 0;
+    }
+
+    long value;
+    bool ok = sc_str_parse_integer(sdk_version, &value);
+    free(sdk_version);
+    if (!ok || value < 0 || value > 0xFFFF) {
+        return 0;
+    }
+
+    return value;
 }

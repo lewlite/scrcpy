@@ -1,11 +1,14 @@
-#ifndef SCREEN_H
-#define SCREEN_H
+#ifndef SC_SCREEN_H
+#define SC_SCREEN_H
 
 #include "common.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <SDL2/SDL.h>
-#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/frame.h>
+#include <libavutil/pixfmt.h>
 
 #include "controller.h"
 #include "coords.h"
@@ -13,7 +16,8 @@
 #include "fps_counter.h"
 #include "frame_buffer.h"
 #include "input_manager.h"
-#include "opengl.h"
+#include "mouse_capture.h"
+#include "options.h"
 #include "trait/key_processor.h"
 #include "trait/frame_sink.h"
 #include "trait/mouse_processor.h"
@@ -25,8 +29,11 @@ struct sc_screen {
     bool open; // track the open/close state to assert correct behavior
 #endif
 
+    bool video;
+
     struct sc_display display;
     struct sc_input_manager im;
+    struct sc_mouse_capture mc; // only used in mouse relative mode
     struct sc_frame_buffer fb;
     struct sc_fps_counter fps_counter;
 
@@ -49,8 +56,8 @@ struct sc_screen {
     // fullscreen (meaningful only when resize_pending is true)
     struct sc_size windowed_content_size;
 
-    // client rotation: 0, 1, 2 or 3 (x90 degrees counterclockwise)
-    unsigned rotation;
+    // client orientation
+    enum sc_orientation orientation;
     // rectangle of the content (excluding black borders)
     struct SDL_Rect rect;
     bool has_frame;
@@ -58,23 +65,25 @@ struct sc_screen {
     bool maximized;
     bool minimized;
 
-    // To enable/disable mouse capture, a mouse capture key (LALT, LGUI or
-    // RGUI) must be pressed. This variable tracks the pressed capture key.
-    SDL_Keycode mouse_capture_key_pressed;
-
     AVFrame *frame;
+
+    bool paused;
+    AVFrame *resume_frame;
 };
 
 struct sc_screen_params {
+    bool video;
+
     struct sc_controller *controller;
     struct sc_file_pusher *fp;
     struct sc_key_processor *kp;
     struct sc_mouse_processor *mp;
+    struct sc_gamepad_processor *gp;
 
-    bool forward_all_clicks;
+    struct sc_mouse_bindings mouse_bindings;
     bool legacy_paste;
     bool clipboard_autosync;
-    const struct sc_shortcut_mods *shortcut_mods;
+    uint8_t shortcut_mods; // OR of enum sc_shortcut_mod values
 
     const char *window_title;
     bool always_on_top;
@@ -86,7 +95,7 @@ struct sc_screen_params {
 
     bool window_borderless;
 
-    uint8_t rotation;
+    enum sc_orientation orientation;
     bool mipmaps;
 
     bool fullscreen;
@@ -117,9 +126,9 @@ sc_screen_destroy(struct sc_screen *screen);
 void
 sc_screen_hide_window(struct sc_screen *screen);
 
-// switch the fullscreen mode
+// toggle the fullscreen mode
 void
-sc_screen_switch_fullscreen(struct sc_screen *screen);
+sc_screen_toggle_fullscreen(struct sc_screen *screen);
 
 // resize window to optimal size (remove black borders)
 void
@@ -129,9 +138,14 @@ sc_screen_resize_to_fit(struct sc_screen *screen);
 void
 sc_screen_resize_to_pixel_perfect(struct sc_screen *screen);
 
-// set the display rotation (0, 1, 2 or 3, x90 degrees counterclockwise)
+// set the display orientation
 void
-sc_screen_set_rotation(struct sc_screen *screen, unsigned rotation);
+sc_screen_set_orientation(struct sc_screen *screen,
+                          enum sc_orientation orientation);
+
+// set the display pause state
+void
+sc_screen_set_paused(struct sc_screen *screen, bool paused);
 
 // react to SDL events
 // If this function returns false, scrcpy must exit with an error.
